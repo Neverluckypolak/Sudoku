@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sudoku</title>
+  <style>
+    :root{
+      --bg:#0b0f16;
+      --panel:#111827;
+      --panel2:#0f172a;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --line:#334155;
+      --line2:#64748b;
+      --accent:#60a5fa;
+      --bad:#fb7185;
+      --good:#34d399;
+      --cell:#0b1220;
+      --cell2:#0b152a;
+    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 50% -10%, #16233a 0%, var(--bg) 55%);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      justify-content:center;
+    }
+    .app{
+      width:min(520px, 100%);
+      padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    h1{
+      font-size:18px;
+      margin:0;
+      letter-spacing:0.3px;
+    }
+    .row{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    button, .chip{
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, #121a2c 0%, #0e1525 100%);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:14px;
+      line-height:1;
+      touch-action:manipulation;
+    }
+    button:active{transform: translateY(1px);}
+    button.secondary{
+      background: linear-gradient(180deg, #0f1a2e 0%, #0b1323 100%);
+      color:var(--muted);
+      font-weight:700;
+    }
+    button.primary{
+      border-color: rgba(96,165,250,.6);
+      box-shadow: 0 0 0 2px rgba(96,165,250,.15) inset;
+    }
+    button.danger{
+      border-color: rgba(251,113,133,.6);
+      box-shadow: 0 0 0 2px rgba(251,113,133,.15) inset;
+    }
+    .tog{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background: rgba(17,24,39,.6);
+      font-size:13px;
+      color:var(--muted);
+      user-select:none;
+    }
+    .tog input{ width:18px; height:18px; }
+    .status{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background: rgba(17,24,39,.65);
+      color:var(--muted);
+      font-size:13px;
+    }
+    .status b{color:var(--text);}
+    .boardWrap{
+      border-radius:16px;
+      padding:10px;
+      background: rgba(17,24,39,.45);
+      border:1px solid var(--line);
+    }
+    .board{
+      width:100%;
+      aspect-ratio: 1 / 1;
+      display:grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap:0;
+      border:2px solid var(--line2);
+      border-radius:12px;
+      overflow:hidden;
+      background: #0a1020;
+    }
+    .cell{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(51,65,85,.65);
+      background: linear-gradient(180deg, rgba(11,18,32,.9) 0%, rgba(10,15,28,.9) 100%);
+      user-select:none;
+      font-weight:800;
+      font-size: clamp(18px, 4.8vw, 28px);
+    }
+    /* thicker box lines */
+    .cell[data-c="2"], .cell[data-c="5"]{ border-right:2px solid var(--line2); }
+    .cell[data-c="3"], .cell[data-c="6"]{ border-left:none; } /* avoid double thickness feel */
+    .cell[data-r="2"], .cell[data-r="5"]{ border-bottom:2px solid var(--line2); }
+    .cell[data-r="3"], .cell[data-r="6"]{ border-top:none; }
+
+    .cell.fixed{
+      color: #f8fafc;
+      background: linear-gradient(180deg, rgba(11,21,42,.95) 0%, rgba(9,16,33,.95) 100%);
+    }
+    .cell.selected{
+      outline: 2px solid rgba(96,165,250,.9);
+      outline-offset:-2px;
+      background: linear-gradient(180deg, rgba(17,40,74,.95) 0%, rgba(10,22,40,.95) 100%);
+    }
+    .cell.peer{
+      background: linear-gradient(180deg, rgba(14,26,46,.85) 0%, rgba(10,18,34,.85) 100%);
+    }
+    .cell.same{
+      box-shadow: 0 0 0 2px rgba(96,165,250,.25) inset;
+    }
+    .cell.bad{
+      color: var(--bad);
+      box-shadow: 0 0 0 2px rgba(251,113,133,.35) inset;
+    }
+    .notes{
+      position:absolute;
+      inset: 4px;
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 1px;
+      font-size: clamp(9px, 2.2vw, 12px);
+      font-weight:700;
+      color: rgba(203,213,225,.85);
+      pointer-events:none;
+    }
+    .notes span{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      opacity:.85;
+    }
+    .pad{
+      display:grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap:8px;
+      background: rgba(17,24,39,.45);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:10px;
+    }
+    .pad button{
+      padding:14px 0;
+      border-radius:14px;
+      font-size:16px;
+      font-weight:900;
+    }
+    .pad button:disabled{
+      opacity:.45;
+    }
+    .actions{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:8px;
+    }
+    .actions button{ padding:12px 8px; font-size:13px; }
+    .hint{ border-color: rgba(52,211,153,.5); box-shadow: 0 0 0 2px rgba(52,211,153,.14) inset;}
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      background: rgba(2,6,23,.88);
+      border:1px solid rgba(148,163,184,.25);
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--text);
+      font-weight:700;
+      font-size:13px;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .2s ease, transform .2s ease;
+      transform-origin:center;
+      max-width:min(520px, calc(100vw - 24px));
+      text-align:center;
+    }
+    .toast.show{
+      opacity:1;
+      transform:translateX(-50%) translateY(-6px);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Sudoku</h1>
+      <div class="row">
+        <button class="secondary" id="newBtn">New</button>
+        <button class="secondary" id="diffBtn">Medium</button>
+        <button class="secondary" id="undoBtn">Undo</button>
+      </div>
+    </header>
+
+    <div class="status">
+      <div><b id="filled">0</b>/81 filled • <span id="timer">00:00</span></div>
+      <div>
+        <label class="tog" title="Toggle pencil notes">
+          <input type="checkbox" id="notesToggle" />
+          Notes
+        </label>
+        <label class="tog" title="Show mistakes in red">
+          <input type="checkbox" id="mistakeToggle" checked />
+          Mistakes
+        </label>
+      </div>
+    </div>
+
+    <div class="boardWrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="actions">
+      <button class="danger" id="eraseBtn">Erase</button>
+      <button class="hint" id="hintBtn">Hint</button>
+      <button class="primary" id="solveBtn">Solve</button>
+      <button class="secondary" id="resetBtn">Reset</button>
+    </div>
+
+    <div class="pad" id="pad"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // ---------- Utilities ----------
+  const $ = (sel) => document.querySelector(sel);
+  const boardEl = $("#board");
+  const padEl = $("#pad");
+  const toastEl = $("#toast");
+
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(()=> toastEl.classList.remove("show"), 1500);
+  }
+
+  // ---------- Sudoku core ----------
+  const SIZE = 9;
+  const BOX = 3;
+  const DIGITS = [1,2,3,4,5,6,7,8,9];
+
+  function makeEmpty(){
+    return Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  }
+
+  function copyGrid(g){
+    return g.map(row => row.slice());
+  }
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function candidates(grid, r, c){
+    if(grid[r][c] !== 0) return [];
+    const used = new Set();
+
+    for(let j=0;j<SIZE;j++) used.add(grid[r][j]);
+    for(let i=0;i<SIZE;i++) used.add(grid[i][c]);
+
+    const br = Math.floor(r/BOX)*BOX;
+    const bc = Math.floor(c/BOX)*BOX;
+    for(let i=br;i<br+BOX;i++){
+      for(let j=bc;j<bc+BOX;j++){
+        used.add(grid[i][j]);
+      }
+    }
+    return DIGITS.filter(x => !used.has(x));
+  }
+
+  function findBestEmpty(grid){
+    let best = null;
+    let bestCands = null;
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        if(grid[r][c]===0){
+          const cands = candidates(grid,r,c);
+          if(cands.length===0) return {pos:[r,c], cands:[]};
+          if(!best || cands.length < bestCands.length){
+            best = [r,c];
+            bestCands = cands;
+            if(bestCands.length===1) return {pos:best, cands:bestCands};
+          }
+        }
+      }
+    }
+    return best ? {pos:best, cands:bestCands} : null;
+  }
+
+  function solve(grid){
+    const pick = findBestEmpty(grid);
+    if(!pick) return true; // solved
+    const {pos, cands} = pick;
+    if(cands.length===0) return false;
+
+    const [r,c] = pos;
+    const vals = shuffle(cands.slice());
+    for(const v of vals){
+      grid[r][c]=v;
+      if(solve(grid)) return true;
+      grid[r][c]=0;
+    }
+    return false;
+  }
+
+  function countSolutions(grid, limit=2){
+    const g = copyGrid(grid);
+    let count = 0;
+
+    function backtrack(){
+      if(count >= limit) return;
+      const pick = findBestEmpty(g);
+      if(!pick){ count++; return; }
+      const {pos, cands} = pick;
+      if(cands.length===0) return;
+
+      const [r,c] = pos;
+      for(const v of cands){
+        g[r][c]=v;
+        backtrack();
+        g[r][c]=0;
+        if(count>=limit) return;
+      }
+    }
+    backtrack();
+    return count;
+  }
+
+  function generateSolution(){
+    const g = makeEmpty();
+    // Randomize a few diagonal boxes for variety
+    for(let b=0;b<3;b++){
+      const nums = shuffle(DIGITS.slice());
+      const br=b*3, bc=b*3;
+      let k=0;
+      for(let r=br;r<br+3;r++){
+        for(let c=bc;c<bc+3;c++){
+          g[r][c]=nums[k++];
+        }
+      }
+    }
+    solve(g);
+    return g;
+  }
+
+  function makePuzzle(solution, clues){
+    const puzzle = copyGrid(solution);
+    const cells = [];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) cells.push([r,c]);
+    shuffle(cells);
+
+    let filled = 81;
+    for(const [r,c] of cells){
+      if(filled <= clues) break;
+      const saved = puzzle[r][c];
+      puzzle[r][c]=0;
+      // ensure unique
+      if(countSolutions(puzzle,2) !== 1){
+        puzzle[r][c]=saved;
+      } else {
+        filled--;
+      }
+    }
+    return puzzle;
+  }
+
+  function diffToClues(diff){
+    if(diff==="Easy") return randInt(36, 42);
+    if(diff==="Medium") return randInt(30, 35);
+    if(diff==="Hard") return randInt(24, 29);
+    return 32;
+  }
+
+  function randInt(a,b){ // inclusive
+    return a + Math.floor(Math.random()*(b-a+1));
+  }
+
+  function validMove(grid, r, c, v){
+    if(v===0) return true;
+    // row/col
+    for(let j=0;j<9;j++) if(j!==c && grid[r][j]===v) return false;
+    for(let i=0;i<9;i++) if(i!==r && grid[i][c]===v) return false;
+    // box
+    const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
+    for(let i=br;i<br+3;i++){
+      for(let j=bc;j<bc+3;j++){
+        if((i!==r || j!==c) && grid[i][j]===v) return false;
+      }
+    }
+    return true;
+  }
+
+  // ---------- Game State ----------
+  let difficulty = "Medium";
+  let solution = null;
+  let initial = null;
+  let grid = null;
+
+  // notes[r][c] => Set of digits
+  let notes = Array.from({length:9}, ()=> Array.from({length:9}, ()=> new Set()));
+  let fixed = new Set(); // "r,c"
+  let selected = {r:0,c:0};
+
+  let undoStack = [];
+  function pushUndo(entry){
+    undoStack.push(entry);
+    undoStack = undoStack.slice(-200);
+  }
+  function popUndo(){
+    return undoStack.pop();
+  }
+
+  // timer
+  let t0 = Date.now();
+  let timerInt = null;
+
+  function startTimer(){
+    if(timerInt) clearInterval(timerInt);
+    t0 = Date.now();
+    timerInt = setInterval(updateTimer, 250);
+    updateTimer();
+  }
+  function updateTimer(){
+    const s = Math.floor((Date.now()-t0)/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,"0");
+    const ss = String(s%60).padStart(2,"0");
+    $("#timer").textContent = `${mm}:${ss}`;
+  }
+
+  function setSelected(r,c){
+    selected = {r,c};
+    render();
+  }
+
+  function cellKey(r,c){ return `${r},${c}`; }
+  function isFixed(r,c){ return fixed.has(cellKey(r,c)); }
+
+  function filledCount(){
+    let n=0;
+    for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(grid[r][c]!==0) n++;
+    return n;
+  }
+
+  function updateStatus(){
+    $("#filled").textContent = filledCount();
+    $("#diffBtn").textContent = difficulty;
+    $("#undoBtn").disabled = undoStack.length===0;
+  }
+
+  function resetNotes(){
+    notes = Array.from({length:9}, ()=> Array.from({length:9}, ()=> new Set()));
+  }
+
+  function newGame(){
+    toast("Generating…");
+    solution = generateSolution();
+    const clues = diffToClues(difficulty);
+    initial = makePuzzle(solution, clues);
+    grid = copyGrid(initial);
+
+    fixed = new Set();
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        if(initial[r][c]!==0) fixed.add(cellKey(r,c));
+      }
+    }
+    resetNotes();
+    undoStack = [];
+    setSelected(0,0);
+    startTimer();
+    render();
+    toast(`New ${difficulty} game`);
+  }
+
+  function resetToInitial(){
+    grid = copyGrid(initial);
+    resetNotes();
+    undoStack = [];
+    render();
+    toast("Reset");
+  }
+
+  function solveNow(){
+    grid = copyGrid(solution);
+    render();
+    toast("Solved");
+  }
+
+  function giveHint(){
+    // find an empty cell
+    const empties = [];
+    for(let r=0;r<9;r++) for(let c=0;c<9;c++){
+      if(grid[r][c]===0) empties.push([r,c]);
+    }
+    if(empties.length===0){ toast("No empty cells"); return; }
+    const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+    if(isFixed(r,c)) return;
+    const prev = grid[r][c];
+    const prevNotes = new Set(notes[r][c]);
+    pushUndo({type:"hint", r,c, prev, prevNotes});
+
+    grid[r][c] = solution[r][c];
+    notes[r][c].clear();
+    render();
+    toast(`Hint at ${r+1},${c+1}`);
+  }
+
+  function erase(){
+    const {r,c} = selected;
+    if(isFixed(r,c)) { toast("Fixed cell"); return; }
+    if(grid[r][c]===0 && notes[r][c].size===0){ toast("Nothing to erase"); return; }
+
+    const prev = grid[r][c];
+    const prevNotes = new Set(notes[r][c]);
+    pushUndo({type:"erase", r,c, prev, prevNotes});
+
+    grid[r][c]=0;
+    notes[r][c].clear();
+    render();
+  }
+
+  function toggleNoteDigit(d){
+    const {r,c} = selected;
+    if(isFixed(r,c)) { toast("Fixed cell"); return; }
+    if(grid[r][c]!==0){ toast("Erase number first"); return; }
+    const s = notes[r][c];
+    const prevNotes = new Set(s);
+    pushUndo({type:"notes", r,c, prev:grid[r][c], prevNotes});
+
+    if(s.has(d)) s.delete(d); else s.add(d);
+    render();
+  }
+
+  function placeDigit(d){
+    const {r,c} = selected;
+    if(isFixed(r,c)) { toast("Fixed cell"); return; }
+
+    const noteMode = $("#notesToggle").checked;
+    if(noteMode){
+      toggleNoteDigit(d);
+      return;
+    }
+
+    const prev = grid[r][c];
+    const prevNotes = new Set(notes[r][c]);
+    pushUndo({type:"place", r,c, prev, prevNotes});
+
+    grid[r][c]=d;
+    notes[r][c].clear();
+    render();
+
+    if(checkWin()){
+      toast("✅ You solved it!");
+      // stop timer
+      if(timerInt) clearInterval(timerInt);
+      timerInt = null;
+    }
+  }
+
+  function checkWin(){
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        if(grid[r][c]===0) return false;
+        if(grid[r][c]!==solution[r][c]) return false;
+      }
+    }
+    return true;
+  }
+
+  function undo(){
+    const e = popUndo();
+    if(!e){ toast("Nothing to undo"); return; }
+    grid[e.r][e.c] = e.prev;
+    notes[e.r][e.c] = new Set(e.prevNotes || []);
+    setSelected(e.r,e.c);
+    render();
+  }
+
+  function cycleDifficulty(){
+    difficulty = (difficulty==="Easy") ? "Medium" : (difficulty==="Medium") ? "Hard" : "Easy";
+    $("#diffBtn").textContent = difficulty;
+    toast(difficulty);
+  }
+
+  // ---------- Rendering ----------
+  function render(){
+    boardEl.innerHTML = "";
+
+    const sel = selected;
+    const selVal = grid[sel.r][sel.c];
+
+    // compute peer cells
+    const peer = new Set();
+    for(let j=0;j<9;j++){ peer.add(cellKey(sel.r,j)); peer.add(cellKey(j,sel.c)); }
+    const br=Math.floor(sel.r/3)*3, bc=Math.floor(sel.c/3)*3;
+    for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++) peer.add(cellKey(r,c));
+
+    const showMistakes = $("#mistakeToggle").checked;
+
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        const v = grid[r][c];
+        const div = document.createElement("div");
+        div.className = "cell";
+        div.dataset.r = r;
+        div.dataset.c = c;
+
+        const key = cellKey(r,c);
+        if(isFixed(r,c)) div.classList.add("fixed");
+
+        if(r===sel.r && c===sel.c) div.classList.add("selected");
+        else if(peer.has(key)) div.classList.add("peer");
+
+        if(selVal !== 0 && v === selVal) div.classList.add("same");
+
+        // mistake highlight (only for user-placed numbers)
+        if(showMistakes && v!==0 && v !== solution[r][c] && !isFixed(r,c)){
+          div.classList.add("bad");
+        }
+
+        div.addEventListener("click", () => setSelected(r,c), {passive:true});
+
+        if(v!==0){
+          div.textContent = v;
+        } else {
+          // notes
+          const n = notes[r][c];
+          if(n.size>0){
+            const notesEl = document.createElement("div");
+            notesEl.className = "notes";
+            for(let i=1;i<=9;i++){
+              const s = document.createElement("span");
+              s.textContent = n.has(i) ? i : "";
+              notesEl.appendChild(s);
+            }
+            div.appendChild(notesEl);
+          } else {
+            div.textContent = "";
+          }
+        }
+
+        boardEl.appendChild(div);
+      }
+    }
+
+    // update pad availability: disable numbers that are already 9 times (optional)
+    const counts = Array(10).fill(0);
+    for(let r=0;r<9;r++) for(let c=0;c<9;c++){
+      const v=grid[r][c];
+      if(v) counts[v]++;
+    }
+    for(const btn of padEl.querySelectorAll("button[data-digit]")){
+      const d = Number(btn.dataset.digit);
+      btn.disabled = counts[d] >= 9;
+    }
+
+    updateStatus();
+  }
+
+  function buildPad(){
+    padEl.innerHTML = "";
+    for(const d of DIGITS){
+      const b = document.createElement("button");
+      b.textContent = d;
+      b.dataset.digit = d;
+      b.addEventListener("click", () => placeDigit(d), {passive:true});
+      padEl.appendChild(b);
+    }
+  }
+
+  // ---------- Keyboard support (optional) ----------
+  function onKey(e){
+    const k = e.key;
+    if(k>="1" && k<="9"){ placeDigit(Number(k)); return; }
+    if(k==="Backspace" || k==="Delete"){ erase(); return; }
+    if(k==="n"){ $("#notesToggle").checked = !$("#notesToggle").checked; toast($("#notesToggle").checked ? "Notes on" : "Notes off"); return; }
+    if(k==="z" && (e.ctrlKey || e.metaKey)){ undo(); return; }
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k)){
+      e.preventDefault();
+      let {r,c}=selected;
+      if(k==="ArrowUp") r = clamp(r-1,0,8);
+      if(k==="ArrowDown") r = clamp(r+1,0,8);
+      if(k==="ArrowLeft") c = clamp(c-1,0,8);
+      if(k==="ArrowRight") c = clamp(c+1,0,8);
+      setSelected(r,c);
+    }
+  }
+
+  // ---------- Wire UI ----------
+  $("#newBtn").addEventListener("click", newGame);
+  $("#diffBtn").addEventListener("click", () => { cycleDifficulty(); newGame(); });
+  $("#undoBtn").addEventListener("click", undo);
+  $("#eraseBtn").addEventListener("click", erase);
+  $("#hintBtn").addEventListener("click", giveHint);
+  $("#solveBtn").addEventListener("click", solveNow);
+  $("#resetBtn").addEventListener("click", resetToInitial);
+  $("#notesToggle").addEventListener("change", () => toast($("#notesToggle").checked ? "Notes on" : "Notes off"));
+  $("#mistakeToggle").addEventListener("change", render);
+  document.addEventListener("keydown", onKey);
+
+  // init
+  buildPad();
+  difficulty = "Medium";
+  newGame();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>

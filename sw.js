@@ -1,6 +1,6 @@
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open("sudoku-cache").then(cache => {
+    caches.open("sudoku-cache-v2").then(cache => {
       return cache.addAll([
         "./",
         "./index.html",
@@ -17,3 +17,4 @@ self.addEventListener("fetch", event => {
     })
   );
 });
+

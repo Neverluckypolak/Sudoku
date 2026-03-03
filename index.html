@@ -265,6 +265,7 @@
   <button class="secondary" id="loadBtn">Load</button>
   <button class="primary" id="solveBtn">Solve</button>
   <button class="secondary" id="resetBtn">Reset</button>
+  <button class="secondary" id="finishBtn" disabled>Finish</button>
 </div>
 
     <div class="pad" id="pad"></div>
@@ -428,6 +429,7 @@
     if(diff==="Easy") return randInt(36, 42);
     if(diff==="Medium") return randInt(30, 35);
     if(diff==="Hard") return randInt(24, 29);
+    if(diff==="Impossible") return randInt(17, 22);
     return 32;
   }
 
@@ -455,6 +457,8 @@
   let solution = null;
   let initial = null;
   let grid = null;
+  let strikes = 0;
+let gameOver = false;
 
   // notes[r][c] => Set of digits
   let notes = Array.from({length:9}, ()=> Array.from({length:9}, ()=> new Set()));
@@ -529,6 +533,9 @@
     setSelected(0,0);
     startTimer();
     render();
+    strikes = 0;
+    gameOver = false;
+    saveGame(true);
     toast(`New ${difficulty} game`);
   }
 
@@ -537,6 +544,7 @@
     resetNotes();
     undoStack = [];
     render();
+    saveGame(true);
     toast("Reset");
   }
 
@@ -547,6 +555,14 @@
   }
 
   function giveHint(){
+    function giveHint(){
+
+  if (gameOver) return;
+
+  if (difficulty === "Impossible") {
+    toast("No hints in Impossible mode");
+    return;
+  }
     // find an empty cell
     const empties = [];
     for(let r=0;r<9;r++) for(let c=0;c<9;c++){
@@ -562,6 +578,7 @@
     grid[r][c] = solution[r][c];
     notes[r][c].clear();
     render();
+    saveGame(true);
     toast(`Hint at ${r+1},${c+1}`);
   }
 
@@ -577,6 +594,7 @@
     grid[r][c]=0;
     notes[r][c].clear();
     render();
+    saveGame(true);
   }
 
   function toggleNoteDigit(d){
@@ -589,6 +607,7 @@
 
     if(s.has(d)) s.delete(d); else s.add(d);
     render();
+    saveGame(true);
   }
 
   function placeDigit(d){
@@ -615,6 +634,7 @@
       if(timerInt) clearInterval(timerInt);
       timerInt = null;
     }
+    saveGame(true);
   }
 
   function checkWin(){
@@ -636,11 +656,15 @@
     render();
   }
 
-  function cycleDifficulty(){
-    difficulty = (difficulty==="Easy") ? "Medium" : (difficulty==="Medium") ? "Hard" : "Easy";
-    $("#diffBtn").textContent = difficulty;
-    toast(difficulty);
-  }
+ function cycleDifficulty(){
+  difficulty =
+    (difficulty==="Easy") ? "Medium" :
+    (difficulty==="Medium") ? "Hard" :
+    (difficulty==="Hard") ? "Impossible" :
+    "Easy";
+  $("#diffBtn").textContent = difficulty;
+  toast(difficulty);
+}
 
   // ---------- Rendering ----------
   function render(){
@@ -713,7 +737,10 @@
       const d = Number(btn.dataset.digit);
       btn.disabled = counts[d] >= 9;
     }
-
+const hintBtn = $("#hintBtn");
+if (hintBtn) {
+  hintBtn.disabled = gameOver || difficulty === "Impossible";
+}
     updateStatus();
   }
 
@@ -745,7 +772,114 @@
       setSelected(r,c);
     }
   }
+const SAVE_KEY = "sudoku_save_v1";
 
+function serializeNotes(n){
+  return n.map(row => row.map(set => Array.from(set)));
+}
+function deserializeNotes(raw){
+  return raw.map(row => row.map(arr => new Set(arr)));
+}
+
+function getElapsedSeconds(){
+  return Math.floor((Date.now() - t0) / 1000);
+}
+
+function saveGame(auto=false){
+  try{
+    const payload = {
+      version: 1,
+      difficulty,
+      solution,
+      initial,
+      grid,
+      fixed: Array.from(fixed),
+      notes: serializeNotes(notes),
+      elapsed: getElapsedSeconds(),
+      selected
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+    if(!auto) toast("Saved");
+  } catch(e){
+    toast("Save failed");
+  }
+}
+
+function loadGame(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(!raw){ toast("No save found"); return; }
+
+  try{
+    const p = JSON.parse(raw);
+    difficulty = p.difficulty || "Medium";
+    solution = p.solution;
+    initial = p.initial;
+    grid = p.grid;
+    fixed = new Set(p.fixed || []);
+    notes = deserializeNotes(p.notes || serializeNotes(notes));
+    selected = p.selected || {r:0,c:0};
+
+    // restore timer
+    const elapsed = Number.isFinite(p.elapsed) ? p.elapsed : 0;
+    if(timerInt) clearInterval(timerInt);
+    t0 = Date.now() - elapsed * 1000;
+    timerInt = setInterval(updateTimer, 250);
+    updateTimer();
+
+    render();
+    toast("Loaded");
+  } catch(e){
+    toast("Load failed");
+  }
+}
+  function emptyCount(){
+  let count = 0;
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      if(grid[r][c] === 0) count++;
+    }
+  }
+  return count;
+}
+
+function hasMistakes(){
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      if(grid[r][c] !== 0 && grid[r][c] !== solution[r][c]){
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function finishRest(){
+  if(emptyCount() > 9){
+    toast("Finish unlocks at 9 remaining");
+    return;
+  }
+
+  if(hasMistakes()){
+    toast("Fix mistakes first");
+    return;
+  }
+
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      if(grid[r][c] === 0){
+        grid[r][c] = solution[r][c];
+      }
+    }
+  }
+
+  render();
+  const finishBtn = $("#finishBtn");
+if(finishBtn){
+  finishBtn.disabled = emptyCount() > 9;
+}
+  saveGame(true);
+  toast("Finished!");
+}
   // ---------- Wire UI ----------
   $("#newBtn").addEventListener("click", newGame);
   $("#diffBtn").addEventListener("click", () => { cycleDifficulty(); newGame(); });
@@ -757,7 +891,9 @@
   $("#notesToggle").addEventListener("change", () => toast($("#notesToggle").checked ? "Notes on" : "Notes off"));
   $("#mistakeToggle").addEventListener("change", render);
   document.addEventListener("keydown", onKey);
-
+$("#saveBtn").addEventListener("click", () => saveGame(false));
+$("#loadBtn").addEventListener("click", loadGame);
+  $("#finishBtn").addEventListener("click", finishRest);
   // init
   buildPad();
   difficulty = "Medium";
@@ -771,4 +907,5 @@ if ("serviceWorker" in navigator) {
 </script>
 </body>
 </html>
+
 

@@ -151,7 +151,11 @@
       background: linear-gradient(180deg, rgba(14,26,46,.85) 0%, rgba(10,18,34,.85) 100%);
     }
     .cell.same{
-      box-shadow: 0 0 0 2px rgba(96,165,250,.25) inset;
+  box-shadow:
+    0 0 0 3px rgba(96,165,250,.65) inset,
+    0 0 18px rgba(96,165,250,.25);
+  background: linear-gradient(180deg, rgba(20,60,110,.80) 0%, rgba(10,22,45,.85) 100%);
+}
     }
     .cell.bad{
       color: var(--bad);
@@ -254,12 +258,14 @@
       <div class="board" id="board"></div>
     </div>
 
-    <div class="actions">
-      <button class="danger" id="eraseBtn">Erase</button>
-      <button class="hint" id="hintBtn">Hint</button>
-      <button class="primary" id="solveBtn">Solve</button>
-      <button class="secondary" id="resetBtn">Reset</button>
-    </div>
+<div class="actions" style="grid-template-columns: repeat(6, 1fr);">
+  <button class="danger" id="eraseBtn">Erase</button>
+  <button class="hint" id="hintBtn">Hint</button>
+  <button class="secondary" id="saveBtn">Save</button>
+  <button class="secondary" id="loadBtn">Load</button>
+  <button class="primary" id="solveBtn">Solve</button>
+  <button class="secondary" id="resetBtn">Reset</button>
+</div>
 
     <div class="pad" id="pad"></div>
   </div>
@@ -765,3 +771,4 @@ if ("serviceWorker" in navigator) {
 </script>
 </body>
 </html>
+

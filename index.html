@@ -275,6 +275,9 @@
 
 <script>
 (() => {
+  window.onerror = (msg, src, line, col, err) => {
+  alert(`JS error:\n${msg}\nLine: ${line}:${col}`);
+};
   // ---------- Utilities ----------
   const $ = (sel) => document.querySelector(sel);
   const boardEl = $("#board");
@@ -907,5 +910,6 @@ if ("serviceWorker" in navigator) {
 </script>
 </body>
 </html>
+
 
 
